@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "aimusic-8a2d1",
+          "appId": "1:972658834954:android:c92e854fc05cf1bb07a9f3",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "aimusic-8a2d1",
+          "configurations": {
+            "android": "1:972658834954:android:c92e854fc05cf1bb07a9f3",
+            "ios": "1:972658834954:ios:d43343c9c729470b07a9f3",
+            "web": "1:972658834954:web:950bb8c4c41140df07a9f3",
+            "windows": "1:972658834954:web:573991fa2612ce9007a9f3"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "venv",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "runtime": "python313"
+    }
+  ]
+}
