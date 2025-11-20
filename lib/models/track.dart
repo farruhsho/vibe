@@ -1,3 +1,5 @@
+import 'audio_features.dart';
+
 class Track {
   final String id;
   final String name;
@@ -6,6 +8,7 @@ class Track {
   final String uri;
   final String? previewUrl;
   final double? score;
+  final AudioFeatures? audioFeatures;
 
   Track({
     required this.id,
@@ -15,6 +18,7 @@ class Track {
     required this.uri,
     this.previewUrl,
     this.score,
+    this.audioFeatures,
   });
 
   factory Track.fromJson(Map<String, dynamic> json) {
@@ -26,6 +30,9 @@ class Track {
       uri: json['uri'] ?? '',
       previewUrl: json['preview_url'],
       score: json['score'] != null ? (json['score'] as num).toDouble() : null,
+      audioFeatures: json['audio_features'] != null
+          ? AudioFeatures.fromJson(json['audio_features'])
+          : null,
     );
   }
 
@@ -38,6 +45,7 @@ class Track {
       'uri': uri,
       'preview_url': previewUrl,
       if (score != null) 'score': score,
+      if (audioFeatures != null) 'audio_features': audioFeatures!.toJson(),
     };
   }
 
