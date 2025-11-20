@@ -5,13 +5,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/track.dart';
 import '../models/audio_features.dart';
+import '../config/api_config.dart';
 import 'recommendation_algorithm.dart';
 import 'pattern_analyzer.dart';
 
 class SpotifyService {
-  // Spotify API credentials
-  static const String _clientId = '0c4284170a4f4c68a4834dc317e6bd11';
-  static const String _clientSecret = 'ea6d94c8b0994d7295e49a7171ec5e14';
+  // Spotify API credentials (from config)
+  static final String _clientId = ApiConfig.spotifyClientId;
+  static final String _clientSecret = ApiConfig.spotifyClientSecret;
 
   // Кэш для токена
   static String? _cachedToken;
@@ -1004,7 +1005,7 @@ class SpotifyService {
 
   /// Обновить Spotify токен через refresh token
   static Future<String?> _refreshSpotifyToken(String userId, String refreshToken) async {
-    const clientId = '0c4284170a4f4c68a4834dc317e6bd11';
+    final clientId = ApiConfig.spotifyClientId;
     // NOTE: В продакшене Client Secret должен быть в Cloud Function!
 
     try {

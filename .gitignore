@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# API Configuration with sensitive credentials
+# Use api_config.example.dart as template
+lib/config/api_config.dart
