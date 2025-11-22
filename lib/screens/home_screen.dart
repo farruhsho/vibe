@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../widgets/mini_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import '../widgets/improved_mini_player.dart';
 import '../widgets/rating_dialog.dart';
 import '../services/spotify_service.dart';
+import '../services/youtube_service.dart';
 import '../services/pattern_analyzer.dart';
 import '../services/user_history_service.dart';
 import '../models/track.dart';
@@ -24,7 +26,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
   final player = AudioPlayer();
-  final miniPlayerKey = GlobalKey<MiniPlayerState>();
+  final miniPlayerKey = GlobalKey<ImprovedMiniPlayerState>();
   List<Track> aiTracks = [];
   List<Track> spotifyRecommendations = [];
   bool loading = false;
@@ -171,23 +173,78 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void playTrack(Track track) async {
-    if (track.previewUrl != null && track.previewUrl!.isNotEmpty) {
-      try {
-        await player.setUrl(track.previewUrl!);
+    try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Загрузка трека...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+            backgroundColor: Color(0xFF1DB954),
+          ),
+        );
+      }
+
+      String? audioUrl;
+
+      // Try to get YouTube stream URL
+      if (track.youtubeStreamUrl != null && track.youtubeStreamUrl!.isNotEmpty) {
+        audioUrl = track.youtubeStreamUrl;
+        debugPrint('🎵 Using cached YouTube URL');
+      } else {
+        // Search YouTube and get stream URL
+        debugPrint('🔍 Searching YouTube for: ${track.name} - ${track.artist}');
+        audioUrl = await YouTubeService.getAudioStreamUrl(track.name, track.artist);
+
+        if (audioUrl != null) {
+          // Update track with YouTube URL for future use
+          final updatedTrack = track.copyWith(youtubeStreamUrl: audioUrl);
+          // Update in the list
+          final index = aiTracks.indexOf(track);
+          if (index != -1) {
+            aiTracks[index] = updatedTrack;
+          }
+        }
+      }
+
+      // If YouTube failed, try Spotify preview
+      if (audioUrl == null && track.previewUrl != null && track.previewUrl!.isNotEmpty) {
+        audioUrl = track.previewUrl;
+        debugPrint('⚠️ Using Spotify preview (30s)');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⚠️ Воспроизведение превью (30 секунд)'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+
+      if (audioUrl != null) {
+        await player.stop();
+        await player.setUrl(audioUrl);
         await player.play();
 
-        // Find track index in current list and set queue
+        // Set up queue
         final trackIndex = aiTracks.indexOf(track);
         if (trackIndex != -1) {
-          final tracksWithPreview = aiTracks.where(
-            (t) => t.previewUrl != null && t.previewUrl!.isNotEmpty,
-          ).toList();
-          final queueIndex = tracksWithPreview.indexOf(track);
-          if (queueIndex != -1) {
-            miniPlayerKey.currentState?.setQueue(tracksWithPreview, startIndex: queueIndex);
-          } else {
-            miniPlayerKey.currentState?.setTrack(track);
-          }
+          miniPlayerKey.currentState?.setQueue(aiTracks, startIndex: trackIndex);
         } else {
           miniPlayerKey.currentState?.setTrack(track);
         }
@@ -205,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         }
 
-        // Show rating dialog after playing (for research data)
+        // Show rating dialog after playing
         if (track.score != null && track.score! > 0) {
           Future.delayed(const Duration(seconds: 10), () {
             if (mounted) {
@@ -213,41 +270,34 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           });
         }
-      } catch (e) {
+
+        debugPrint('✅ Now playing: ${track.name} - ${track.artist}');
+      } else {
+        // No audio URL available, open in Spotify
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Ошибка воспроизведения: $e'),
-              backgroundColor: Colors.red,
+            const SnackBar(
+              content: Text('Не удалось загрузить трек. Открываю в Spotify...'),
+              duration: Duration(seconds: 2),
+              backgroundColor: Colors.orange,
             ),
           );
         }
-      }
-    } else {
-      // Если нет превью - открываем в Spotify
-      try {
+
         final uri = Uri.parse(track.uri);
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri, mode: LaunchMode.externalApplication);
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Не удается открыть трек в Spotify'),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
         }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Ошибка: $e'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error playing track: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ошибка воспроизведения: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -305,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          MiniPlayer(player: player, key: miniPlayerKey),
+          ImprovedMiniPlayer(player: player, key: miniPlayerKey),
           BottomNavigationBar(
             currentIndex: _index,
             onTap: (i) => setState(() => _index = i),
@@ -359,100 +409,118 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Горизонтальные категории-кружочки
+                // Улучшенные карточки настроения
                 SizedBox(
-                  height: 140,
+                  height: 160,
                   child: ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: MoodCategories.all.length,
                     itemBuilder: (context, index) {
                       final mood = MoodCategories.all[index];
                       return Container(
+                        width: 140,
                         margin: const EdgeInsets.only(right: 16),
-                        child: Column(
-                          children: [
-                            // Кружок с иконкой
-                            GestureDetector(
-                              onTap: () => loadAI(mood.name),
-                              child: Container(
-                                width: 100,
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: [
-                                      mood.color,
-                                      mood.color.withValues(alpha: 0.7),
-                                    ],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: mood.color.withValues(alpha: 0.4),
-                                      blurRadius: 12,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
+                        child: GestureDetector(
+                          onTap: () => loadAI(mood.name),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  mood.color.withOpacity(0.8),
+                                  mood.color.withOpacity(0.4),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: mood.color.withOpacity(0.5),
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 8),
+                                  spreadRadius: 2,
                                 ),
-                                child: Stack(
-                                  children: [
-                                    Center(
-                                      child: Icon(
+                              ],
+                            ),
+                            child: Stack(
+                              children: [
+                                // Background icon
+                                Positioned(
+                                  top: -20,
+                                  right: -20,
+                                  child: Opacity(
+                                    opacity: 0.2,
+                                    child: Icon(
+                                      mood.icon,
+                                      size: 120,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                // Content
+                                Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
                                         mood.icon,
                                         color: Colors.white,
-                                        size: 40,
+                                        size: 36,
                                       ),
-                                    ),
-                                    // Кнопка Play в углу
-                                    Positioned(
-                                      bottom: 4,
-                                      right: 4,
-                                      child: GestureDetector(
-                                        onTap: () => loadAI(mood.name),
-                                        child: Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withValues(alpha: 0.3),
-                                                blurRadius: 6,
-                                                offset: const Offset(0, 2),
+                                      const Spacer(),
+                                      Text(
+                                        mood.label,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          shadows: [
+                                            Shadow(
+                                              color: Colors.black26,
+                                              blurRadius: 4,
+                                            ),
+                                          ],
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.3),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.play_arrow,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                            SizedBox(width: 4),
+                                            Text(
+                                              'Play',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
                                               ),
-                                            ],
-                                          ),
-                                          child: Icon(
-                                            Icons.play_arrow,
-                                            color: mood.color,
-                                            size: 20,
-                                          ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            // Название
-                            SizedBox(
-                              width: 100,
-                              child: Text(
-                                mood.label,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       );
                     },
@@ -503,14 +571,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           Stack(
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(12),
                                 child: track.image.isNotEmpty
-                                    ? Image.network(
-                                        track.image,
+                                    ? CachedNetworkImage(
+                                        imageUrl: track.image,
                                         width: 160,
                                         height: 160,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
+                                        placeholder: (context, url) => Container(
+                                          width: 160,
+                                          height: 160,
+                                          color: Colors.grey[800],
+                                          child: const Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(
+                                                Color(0xFF1DB954),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        errorWidget: (context, url, error) {
                                           return Container(
                                             width: 160,
                                             height: 160,
@@ -528,7 +609,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         height: 160,
                                         decoration: BoxDecoration(
                                           color: Colors.grey[800],
-                                          borderRadius: BorderRadius.circular(8),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: const Icon(
                                           Icons.music_note,
@@ -537,28 +618,33 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                       ),
                               ),
-                              // Play button overlay
+                              // Play button overlay with animation
                               Positioned(
                                 bottom: 8,
                                 right: 8,
                                 child: Container(
-                                  width: 40,
-                                  height: 40,
+                                  width: 44,
+                                  height: 44,
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF1DB954),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF1DB954),
+                                        Color(0xFF1ED760),
+                                      ],
+                                    ),
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.3),
-                                        blurRadius: 8,
-                                        offset: const Offset(0, 2),
+                                        color: const Color(0xFF1DB954).withOpacity(0.6),
+                                        blurRadius: 12,
+                                        offset: const Offset(0, 4),
                                       ),
                                     ],
                                   ),
                                   child: const Icon(
-                                    Icons.play_arrow,
+                                    Icons.play_arrow_rounded,
                                     color: Colors.white,
-                                    size: 24,
+                                    size: 26,
                                   ),
                                 ),
                               ),
@@ -687,34 +773,61 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTrackTile(Track track, {bool showScore = false, bool isFavorite = false, String? docId}) {
-    return ListTile(
-      leading: track.image.isNotEmpty
-          ? ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          track.image,
-          width: 56,
-          height: 56,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) {
-            return Container(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF2A2A2A),
+            const Color(0xFF1E1E1E),
+          ],
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(8),
+        leading: track.image.isNotEmpty
+            ? ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: CachedNetworkImage(
+            imageUrl: track.image,
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
               width: 56,
               height: 56,
-              color: Colors.grey,
-              child: const Icon(Icons.music_note),
-            );
-          },
+              color: Colors.grey[800],
+              child: const Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Color(0xFF1DB954),
+                  ),
+                ),
+              ),
+            ),
+            errorWidget: (context, url, error) {
+              return Container(
+                width: 56,
+                height: 56,
+                color: Colors.grey[800],
+                child: const Icon(Icons.music_note, color: Colors.white),
+              );
+            },
+          ),
+        )
+            : Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: Colors.grey[800],
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.music_note, color: Colors.white),
         ),
-      )
-          : Container(
-        width: 56,
-        height: 56,
-        decoration: BoxDecoration(
-          color: Colors.grey,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: const Icon(Icons.music_note),
-      ),
       title: Text(
         track.name,
         maxLines: 1,
@@ -739,50 +852,63 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
         ],
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!isFavorite)
-            IconButton(
-              icon: const Icon(Icons.favorite_border),
-              onPressed: () async {
-                await SpotifyService.addToFavorites(track);
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Добавлено в избранное ❤️'),
-                      duration: Duration(seconds: 1),
-                    ),
-                  );
-                }
-              },
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () async {
-                if (docId != null) {
-                  await SpotifyService.removeFromFavorites(docId);
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Удалено из избранного'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!isFavorite)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.favorite_border, color: Colors.white70),
+                  onPressed: () async {
+                    await SpotifyService.addToFavorites(track);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Добавлено в избранное ❤️'),
+                          duration: Duration(seconds: 1),
+                          backgroundColor: Color(0xFF1DB954),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                onPressed: () async {
+                  if (docId != null) {
+                    await SpotifyService.removeFromFavorites(docId);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Удалено из избранного'),
+                          duration: Duration(seconds: 1),
+                        ),
+                      );
+                    }
                   }
-                }
-              },
+                },
+              ),
+            const SizedBox(width: 4),
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1DB954), Color(0xFF1ED760)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                onPressed: () => playTrack(track),
+              ),
             ),
-          IconButton(
-            icon: Icon(
-              track.previewUrl != null && track.previewUrl!.isNotEmpty
-                  ? Icons.play_arrow
-                  : Icons.open_in_new,
-            ),
-            onPressed: () => playTrack(track),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
