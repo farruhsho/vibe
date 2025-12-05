@@ -3,7 +3,6 @@
 /// Defines the contract for authentication operations.
 /// The implementation is in the data layer.
 
-import '../entities/user.dart';
 import '../../core/utils/result.dart';
 import '../../core/errors/failures.dart';
 

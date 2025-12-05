@@ -3,81 +3,80 @@
 /// This provides an Either-like type for handling success and failure cases
 /// without throwing exceptions across layer boundaries.
 
-import '../errors/failures.dart';
-
 /// Sealed class representing either a success or failure result
-sealed class Result<T> {
+/// T = Success value type, E = Error/Failure type
+sealed class Result<T, E> {
   const Result();
 
   /// Creates a success result with the given value
-  factory Result.success(T value) => Success(value);
+  const factory Result.success(T value) = Success<T, E>;
 
-  /// Creates a failure result with the given failure
-  factory Result.failure(Failure failure) => Error(failure);
+  /// Creates an error result with the given error
+  const factory Result.error(E error) = Error<T, E>;
 
   /// Returns true if this is a success result
-  bool get isSuccess => this is Success<T>;
+  bool get isSuccess => this is Success<T, E>;
 
-  /// Returns true if this is a failure result
-  bool get isFailure => this is Error<T>;
+  /// Returns true if this is an error result
+  bool get isError => this is Error<T, E>;
 
-  /// Gets the success value or null if this is a failure
+  /// Gets the success value or null if this is an error
   T? get valueOrNull => switch (this) {
         Success(:final value) => value,
         Error() => null,
       };
 
-  /// Gets the failure or null if this is a success
-  Failure? get failureOrNull => switch (this) {
+  /// Gets the error or null if this is a success
+  E? get errorOrNull => switch (this) {
         Success() => null,
-        Error(:final failure) => failure,
+        Error(:final error) => error,
       };
 
-  /// Gets the success value or throws if this is a failure
+  /// Gets the success value or throws if this is an error
   T get valueOrThrow => switch (this) {
         Success(:final value) => value,
-        Error(:final failure) => throw Exception(failure.message),
+        Error(:final error) => throw Exception(error.toString()),
       };
 
   /// Transforms the success value using the given function
-  Result<R> map<R>(R Function(T value) transform) => switch (this) {
+  Result<R, E> map<R>(R Function(T value) transform) => switch (this) {
         Success(:final value) => Result.success(transform(value)),
-        Error(:final failure) => Result.failure(failure),
+        Error(:final error) => Result.error(error),
       };
 
   /// Transforms the success value using an async function
-  Future<Result<R>> mapAsync<R>(Future<R> Function(T value) transform) async =>
+  Future<Result<R, E>> mapAsync<R>(Future<R> Function(T value) transform) async =>
       switch (this) {
         Success(:final value) => Result.success(await transform(value)),
-        Error(:final failure) => Result.failure(failure),
+        Error(:final error) => Result.error(error),
       };
 
   /// Chains another result-returning operation
-  Result<R> flatMap<R>(Result<R> Function(T value) transform) => switch (this) {
+  Result<R, E> flatMap<R>(Result<R, E> Function(T value) transform) => switch (this) {
         Success(:final value) => transform(value),
-        Error(:final failure) => Result.failure(failure),
+        Error(:final error) => Result.error(error),
       };
 
   /// Chains another async result-returning operation
-  Future<Result<R>> flatMapAsync<R>(
-    Future<Result<R>> Function(T value) transform,
+  Future<Result<R, E>> flatMapAsync<R>(
+    Future<Result<R, E>> Function(T value) transform,
   ) async =>
       switch (this) {
         Success(:final value) => await transform(value),
-        Error(:final failure) => Result.failure(failure),
+        Error(:final error) => Result.error(error),
       };
 
-  /// Executes an action based on success or failure
+  /// Executes an action based on success or error
   R fold<R>({
     required R Function(T value) onSuccess,
-    required R Function(Failure failure) onFailure,
+    required R Function(E error) onError,
   }) =>
       switch (this) {
         Success(:final value) => onSuccess(value),
-        Error(:final failure) => onFailure(failure),
+        Error(:final error) => onError(error),
       };
 
-  /// Gets the value or a default if failure
+  /// Gets the value or a default if error
   T getOrElse(T Function() defaultValue) => switch (this) {
         Success(:final value) => value,
         Error() => defaultValue(),
@@ -90,24 +89,24 @@ sealed class Result<T> {
       };
 
   /// Executes a side effect on success
-  Result<T> onSuccess(void Function(T value) action) {
+  Result<T, E> onSuccess(void Function(T value) action) {
     if (this case Success(:final value)) {
       action(value);
     }
     return this;
   }
 
-  /// Executes a side effect on failure
-  Result<T> onFailure(void Function(Failure failure) action) {
-    if (this case Error(:final failure)) {
-      action(failure);
+  /// Executes a side effect on error
+  Result<T, E> onError(void Function(E error) action) {
+    if (this case Error(:final error)) {
+      action(error);
     }
     return this;
   }
 }
 
 /// Success result containing a value
-final class Success<T> extends Result<T> {
+final class Success<T, E> extends Result<T, E> {
   final T value;
 
   const Success(this.value);
@@ -115,7 +114,7 @@ final class Success<T> extends Result<T> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Success<T> &&
+      other is Success<T, E> &&
           runtimeType == other.runtimeType &&
           value == other.value;
 
@@ -126,38 +125,38 @@ final class Success<T> extends Result<T> {
   String toString() => 'Success($value)';
 }
 
-/// Error result containing a failure
-final class Error<T> extends Result<T> {
-  final Failure failure;
+/// Error result containing an error
+final class Error<T, E> extends Result<T, E> {
+  final E error;
 
-  const Error(this.failure);
+  const Error(this.error);
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Error<T> &&
+      other is Error<T, E> &&
           runtimeType == other.runtimeType &&
-          failure == other.failure;
+          error == other.error;
 
   @override
-  int get hashCode => failure.hashCode;
+  int get hashCode => error.hashCode;
 
   @override
-  String toString() => 'Error(${failure.message})';
+  String toString() => 'Error($error)';
 }
 
 /// Extension to combine multiple results
-extension ResultListExtension<T> on List<Result<T>> {
+extension ResultListExtension<T, E> on List<Result<T, E>> {
   /// Combines all results into a single result containing a list
-  /// Fails if any result is a failure
-  Result<List<T>> combine() {
+  /// Fails if any result is an error
+  Result<List<T>, E> combine() {
     final values = <T>[];
     for (final result in this) {
       switch (result) {
         case Success(:final value):
           values.add(value);
-        case Error(:final failure):
-          return Result.failure(failure);
+        case Error(:final error):
+          return Result.error(error);
       }
     }
     return Result.success(values);
@@ -165,16 +164,16 @@ extension ResultListExtension<T> on List<Result<T>> {
 }
 
 /// Extension for async result operations
-extension FutureResultExtension<T> on Future<Result<T>> {
+extension FutureResultExtension<T, E> on Future<Result<T, E>> {
   /// Maps the success value of the future result
-  Future<Result<R>> mapSuccess<R>(R Function(T value) transform) async {
+  Future<Result<R, E>> mapSuccess<R>(R Function(T value) transform) async {
     final result = await this;
     return result.map(transform);
   }
 
   /// Chains another async operation
-  Future<Result<R>> thenFlatMap<R>(
-    Future<Result<R>> Function(T value) transform,
+  Future<Result<R, E>> thenFlatMap<R>(
+    Future<Result<R, E>> Function(T value) transform,
   ) async {
     final result = await this;
     return result.flatMapAsync(transform);

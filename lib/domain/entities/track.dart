@@ -3,11 +3,10 @@
 /// This is a domain entity that contains the core business data
 /// for a music track, independent of any data source.
 
-import 'package:equatable/equatable.dart';
 import 'audio_features.dart';
 
 /// Immutable track entity
-class Track extends Equatable {
+class Track {
   /// Spotify track ID
   final String id;
 
@@ -44,6 +43,9 @@ class Track extends Equatable {
   /// Whether this track is saved in user's library
   final bool? isSaved;
 
+  /// Whether this track has explicit content
+  final bool explicit;
+
   const Track({
     required this.id,
     required this.name,
@@ -57,10 +59,17 @@ class Track extends Equatable {
     this.audioFeatures,
     this.recommendationScore,
     this.isSaved,
+    this.explicit = false,
   });
 
   /// Whether this track has a playable preview
   bool get hasPreview => previewUrl != null && previewUrl!.isNotEmpty;
+
+  /// Get artist names (alias for artist field for widget compatibility)
+  String get artistNames => artist;
+
+  /// Get album image URL (alias for imageUrl for widget compatibility)
+  String? get albumImageUrl => imageUrl;
 
   /// Formatted duration string (e.g., "3:45")
   String get formattedDuration {
@@ -84,6 +93,7 @@ class Track extends Equatable {
     AudioFeatures? audioFeatures,
     double? recommendationScore,
     bool? isSaved,
+    bool? explicit,
   }) {
     return Track(
       id: id ?? this.id,
@@ -98,31 +108,24 @@ class Track extends Equatable {
       audioFeatures: audioFeatures ?? this.audioFeatures,
       recommendationScore: recommendationScore ?? this.recommendationScore,
       isSaved: isSaved ?? this.isSaved,
+      explicit: explicit ?? this.explicit,
     );
   }
 
   @override
-  List<Object?> get props => [
-        id,
-        name,
-        artist,
-        imageUrl,
-        spotifyUri,
-        previewUrl,
-        albumName,
-        durationMs,
-        popularity,
-        audioFeatures,
-        recommendationScore,
-        isSaved,
-      ];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Track && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 
   @override
   String toString() => 'Track(id: $id, name: $name, artist: $artist)';
 }
 
 /// Lightweight track reference for history/favorites
-class TrackReference extends Equatable {
+class TrackReference {
   final String trackId;
   final String name;
   final String artist;
@@ -138,5 +141,12 @@ class TrackReference extends Equatable {
   });
 
   @override
-  List<Object?> get props => [trackId, name, artist, imageUrl, timestamp];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrackReference &&
+          runtimeType == other.runtimeType &&
+          trackId == other.trackId;
+
+  @override
+  int get hashCode => trackId.hashCode;
 }
