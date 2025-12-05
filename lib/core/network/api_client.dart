@@ -57,11 +57,9 @@ class ApiClient {
     bool requiresAuth = true,
   }) async {
     final uri = _buildUri(path, queryParams);
+    final requestHeaders = await _buildHeaders(headers, requiresAuth);
     return _executeWithRetry(
-      () => _httpClient.get(
-        uri,
-        headers: await _buildHeaders(headers, requiresAuth),
-      ),
+      () => _httpClient.get(uri, headers: requestHeaders),
       requiresAuth: requiresAuth,
     );
   }
@@ -103,13 +101,12 @@ class ApiClient {
     bool requiresAuth = true,
   }) async {
     final uri = _buildUri(path, queryParams);
+    final requestHeaders = await _buildHeaders(headers, requiresAuth);
+    requestHeaders['Content-Type'] = 'application/json';
     return _executeWithRetry(
       () => _httpClient.put(
         uri,
-        headers: {
-          ...await _buildHeaders(headers, requiresAuth),
-          'Content-Type': 'application/json',
-        },
+        headers: requestHeaders,
         body: body != null ? jsonEncode(body) : null,
       ),
       requiresAuth: requiresAuth,
@@ -124,11 +121,9 @@ class ApiClient {
     bool requiresAuth = true,
   }) async {
     final uri = _buildUri(path, queryParams);
+    final requestHeaders = await _buildHeaders(headers, requiresAuth);
     return _executeWithRetry(
-      () => _httpClient.delete(
-        uri,
-        headers: await _buildHeaders(headers, requiresAuth),
-      ),
+      () => _httpClient.delete(uri, headers: requestHeaders),
       requiresAuth: requiresAuth,
     );
   }

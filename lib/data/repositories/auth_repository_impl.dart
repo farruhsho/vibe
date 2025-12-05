@@ -10,7 +10,7 @@ import '../../domain/repositories/auth_repository.dart';
 import '../../core/utils/result.dart';
 import '../../core/errors/failures.dart';
 import '../../core/errors/exceptions.dart';
-import '../datasources/remote/spotify_auth_datasource.dart';
+import '../datasources/remote/spotify_auth_datasource.dart' as datasource;
 
 /// Firebase Auth implementation of AuthRepository
 class AuthRepositoryImpl implements AuthRepository {
@@ -238,10 +238,10 @@ class AuthRepositoryImpl implements AuthRepository {
 
 /// Spotify Auth implementation
 class SpotifyAuthRepositoryImpl implements SpotifyAuthRepository {
-  final SpotifyAuthDatasource _datasource;
+  final datasource.SpotifyAuthDatasource _datasource;
 
-  SpotifyAuthRepositoryImpl({SpotifyAuthDatasource? datasource})
-      : _datasource = datasource ?? SpotifyAuthDatasource();
+  SpotifyAuthRepositoryImpl({datasource.SpotifyAuthDatasource? ds})
+      : _datasource = ds ?? datasource.SpotifyAuthDatasource();
 
   @override
   Future<Uri> getAuthorizationUrl() async {
@@ -277,7 +277,7 @@ class SpotifyAuthRepositoryImpl implements SpotifyAuthRepository {
   @override
   Future<Result<SpotifyTokens, Failure>> refreshToken() async {
     try {
-      final tokens = await _datasource.refreshToken();
+      final tokens = await _datasource.refreshAccessToken();
 
       return Result.success(SpotifyTokens(
         accessToken: tokens.accessToken,

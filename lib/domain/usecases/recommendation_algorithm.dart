@@ -95,7 +95,7 @@ class MoodProfile {
 
   /// Convert to pseudo AudioFeatures for comparison
   AudioFeatures toAudioFeatures() => AudioFeatures(
-        trackId: 'mood_$name',
+        id: 'mood_$name',
         energy: targetEnergy,
         valence: targetValence,
         danceability: targetDanceability,
