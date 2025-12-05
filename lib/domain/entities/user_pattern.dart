@@ -3,10 +3,8 @@
 /// This entity represents a user's music listening preferences
 /// derived from their listening history analysis.
 
-import 'package:equatable/equatable.dart';
-
 /// User's music preference pattern based on listening history
-class UserPattern extends Equatable {
+class UserPattern {
   /// User ID
   final String userId;
 
@@ -50,7 +48,6 @@ class UserPattern extends Equatable {
   final DateTime lastUpdated;
 
   /// Time-of-day preferences (hour: preference factor)
-  /// Maps 6 periods (0-5) to energy/valence preferences
   final Map<String, TimeOfDayPreference>? timeOfDayPreferences;
 
   /// Genre preferences (genre: play count)
@@ -80,21 +77,18 @@ class UserPattern extends Equatable {
   });
 
   /// Pattern strength (0.0-1.0)
-  /// Lower standard deviation means stronger, more consistent preferences
   double get patternStrength {
     final avgStdDev = (energyStdDev + valenceStdDev + danceabilityStdDev) / 3.0;
     return (1.0 - avgStdDev).clamp(0.0, 1.0);
   }
 
   /// Whether this pattern has enough data to be reliable
-  /// Requires at least 10 tracks for meaningful analysis
   bool get isReliable => totalTracksAnalyzed >= 10;
 
   /// Whether pattern is stale (older than 7 days)
   bool get isStale => DateTime.now().difference(lastUpdated).inDays > 7;
 
   /// Pattern confidence level based on sample size
-  /// Returns: 'low', 'medium', 'high'
   String get confidenceLevel {
     if (totalTracksAnalyzed >= 50) return 'high';
     if (totalTracksAnalyzed >= 20) return 'medium';
@@ -103,8 +97,6 @@ class UserPattern extends Equatable {
 
   /// Numerical confidence (0.0-1.0) based on sample size
   double get confidence {
-    // Sigmoid function that approaches 1.0 as track count increases
-    // Half-max at 25 tracks, 90% at 50 tracks
     return 1.0 - (1.0 / (1.0 + (totalTracksAnalyzed / 25.0)));
   }
 
@@ -164,12 +156,12 @@ class UserPattern extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
-        userId, avgEnergy, avgValence, avgDanceability, avgTempo,
-        avgAcousticness, avgInstrumentalness, avgSpeechiness,
-        energyStdDev, valenceStdDev, danceabilityStdDev, tempoStdDev,
-        totalTracksAnalyzed, lastUpdated,
-      ];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserPattern && runtimeType == other.runtimeType && userId == other.userId;
+
+  @override
+  int get hashCode => userId.hashCode;
 
   @override
   String toString() =>
@@ -182,7 +174,7 @@ class UserPattern extends Equatable {
 }
 
 /// Time of day preference for a specific period
-class TimeOfDayPreference extends Equatable {
+class TimeOfDayPreference {
   /// Period (0-5, each representing 4 hours)
   final int period;
 
@@ -216,11 +208,16 @@ class TimeOfDayPreference extends Equatable {
   }
 
   @override
-  List<Object?> get props => [period, avgEnergy, avgValence, trackCount];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TimeOfDayPreference && runtimeType == other.runtimeType && period == other.period;
+
+  @override
+  int get hashCode => period.hashCode;
 }
 
 /// Day of week preference
-class DayOfWeekPreference extends Equatable {
+class DayOfWeekPreference {
   /// Day of week (1=Monday, 7=Sunday)
   final int dayOfWeek;
 
@@ -247,5 +244,10 @@ class DayOfWeekPreference extends Equatable {
   }
 
   @override
-  List<Object?> get props => [dayOfWeek, avgEnergy, avgValence, trackCount];
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DayOfWeekPreference && runtimeType == other.runtimeType && dayOfWeek == other.dayOfWeek;
+
+  @override
+  int get hashCode => dayOfWeek.hashCode;
 }
