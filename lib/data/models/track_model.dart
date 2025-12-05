@@ -21,6 +21,7 @@ class TrackModel extends Track {
     super.audioFeatures,
     super.recommendationScore,
     super.isSaved,
+    super.explicit,
   });
 
   /// Create from Spotify API response
@@ -55,6 +56,7 @@ class TrackModel extends Track {
       albumName: album['name'] as String?,
       durationMs: json['duration_ms'] as int?,
       popularity: json['popularity'] as int?,
+      explicit: json['explicit'] as bool? ?? false,
     );
   }
 
@@ -79,6 +81,7 @@ class TrackModel extends Track {
       popularity: data['popularity'] as int?,
       audioFeatures: audioFeatures,
       recommendationScore: (data['score'] as num?)?.toDouble(),
+      explicit: data['explicit'] as bool? ?? false,
     );
   }
 
@@ -94,6 +97,7 @@ class TrackModel extends Track {
       'album_name': albumName,
       'duration_ms': durationMs,
       'popularity': popularity,
+      'explicit': explicit,
       if (audioFeatures != null)
         'audio_features': (audioFeatures as AudioFeaturesModel?)?.toFirestore() ??
             AudioFeaturesModel.fromEntity(audioFeatures!).toFirestore(),
@@ -115,6 +119,7 @@ class TrackModel extends Track {
         audioFeatures: audioFeatures,
         recommendationScore: recommendationScore,
         isSaved: isSaved,
+        explicit: explicit,
       );
 
   /// Create model from domain entity
@@ -131,6 +136,7 @@ class TrackModel extends Track {
         audioFeatures: entity.audioFeatures,
         recommendationScore: entity.recommendationScore,
         isSaved: entity.isSaved,
+        explicit: entity.explicit,
       );
 
   /// Copy with audio features attached
@@ -147,6 +153,7 @@ class TrackModel extends Track {
         audioFeatures: features,
         recommendationScore: recommendationScore,
         isSaved: isSaved,
+        explicit: explicit,
       );
 
   /// Copy with recommendation score
@@ -163,5 +170,6 @@ class TrackModel extends Track {
         audioFeatures: audioFeatures,
         recommendationScore: score,
         isSaved: isSaved,
+        explicit: explicit,
       );
 }

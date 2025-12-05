@@ -7,7 +7,7 @@ import '../../domain/entities/audio_features.dart';
 
 class AudioFeaturesModel extends AudioFeatures {
   const AudioFeaturesModel({
-    required super.trackId,
+    required super.id,
     required super.energy,
     required super.valence,
     required super.danceability,
@@ -20,12 +20,13 @@ class AudioFeaturesModel extends AudioFeatures {
     super.key,
     super.mode,
     super.timeSignature,
+    super.durationMs,
   });
 
   /// Create from Spotify Audio Features API response
   factory AudioFeaturesModel.fromSpotifyJson(Map<String, dynamic> json) {
     return AudioFeaturesModel(
-      trackId: json['id'] as String? ?? '',
+      id: json['id'] as String? ?? '',
       energy: (json['energy'] as num?)?.toDouble() ?? 0.0,
       valence: (json['valence'] as num?)?.toDouble() ?? 0.0,
       danceability: (json['danceability'] as num?)?.toDouble() ?? 0.0,
@@ -38,13 +39,14 @@ class AudioFeaturesModel extends AudioFeatures {
       key: json['key'] as int? ?? 0,
       mode: json['mode'] as int? ?? 1,
       timeSignature: json['time_signature'] as int? ?? 4,
+      durationMs: json['duration_ms'] as int? ?? 0,
     );
   }
 
   /// Create from Firestore document
   factory AudioFeaturesModel.fromFirestore(Map<String, dynamic> data) {
     return AudioFeaturesModel(
-      trackId: data['track_id'] as String? ?? data['id'] as String? ?? '',
+      id: data['track_id'] as String? ?? data['id'] as String? ?? '',
       energy: (data['energy'] as num?)?.toDouble() ?? 0.0,
       valence: (data['valence'] as num?)?.toDouble() ?? 0.0,
       danceability: (data['danceability'] as num?)?.toDouble() ?? 0.0,
@@ -57,13 +59,18 @@ class AudioFeaturesModel extends AudioFeatures {
       key: data['key'] as int? ?? 0,
       mode: data['mode'] as int? ?? 1,
       timeSignature: data['time_signature'] as int? ?? 4,
+      durationMs: data['duration_ms'] as int? ?? 0,
     );
   }
+
+  /// Create from JSON (alias for fromSpotifyJson for API compatibility)
+  factory AudioFeaturesModel.fromJson(Map<String, dynamic> json) =>
+      AudioFeaturesModel.fromSpotifyJson(json);
 
   /// Convert to Firestore document
   Map<String, dynamic> toFirestore() {
     return {
-      'track_id': trackId,
+      'track_id': id,
       'energy': energy,
       'valence': valence,
       'danceability': danceability,
@@ -76,12 +83,13 @@ class AudioFeaturesModel extends AudioFeatures {
       'key': key,
       'mode': mode,
       'time_signature': timeSignature,
+      'duration_ms': durationMs,
     };
   }
 
   /// Convert to domain entity
   AudioFeatures toEntity() => AudioFeatures(
-        trackId: trackId,
+        id: id,
         energy: energy,
         valence: valence,
         danceability: danceability,
@@ -94,12 +102,13 @@ class AudioFeaturesModel extends AudioFeatures {
         key: key,
         mode: mode,
         timeSignature: timeSignature,
+        durationMs: durationMs,
       );
 
   /// Create model from domain entity
   factory AudioFeaturesModel.fromEntity(AudioFeatures entity) =>
       AudioFeaturesModel(
-        trackId: entity.trackId,
+        id: entity.id,
         energy: entity.energy,
         valence: entity.valence,
         danceability: entity.danceability,
@@ -112,6 +121,7 @@ class AudioFeaturesModel extends AudioFeatures {
         key: entity.key,
         mode: entity.mode,
         timeSignature: entity.timeSignature,
+        durationMs: entity.durationMs,
       );
 
   /// Create a summary map for logging/debugging
